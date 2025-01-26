@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 : '
 Author: Daniel Canencia García
@@ -6,196 +6,302 @@ Title: Linux Boxes Fingerprinting Script
 Description:
 This script collects a set of hardware, software, network, and OS signals
 to generate a unique fingerprint for a Linux machine. It supports three
-modes (strict, moderate, relaxed) to control the level of signals included
-in the fingerprint based on their volatility or reliability
+output modes (raw, private and both) and the number of signals taken
+into account depends on the process available permissions (e.g. local/root
+permissions)
 
-Usage: ./linid.sh {mode}
-Modes (default to strict):
-- strict   : Includes only the permanent/non-volatile signals.
-- moderate : Includes both strict and moderate (semi-volatile) signals
-- relaxed  : Includes all signals, including non-permanent/volatile ones.
+Usage: sh linid.sh --output-mode {output_mode} --hash-cmd {hash_command}
+Output Modes (default to private):
+- raw       : only signal outputs are shown
+- private   : only resulting hashes are shown
+- both      : both signal outputs and hashes are shown
+Hash Command: sha1sum, sha256sum, md5sum, etc
+
+Busybox Suite (not used by default):
+    - e.g. sh linid.sh --busybox --busybox-path "/.../.../busybox"
+- --busybox      : use the busybox suite to handle unix/linux commands
+- --busybox-path : path to the busybox binary
 '
 
-# Check if the script is running as root
-if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: This script needs root privileges"
-    exit 1
+# Default values
+output_mode="private"
+hash_cmd="sha1sum"
+use_busybox=0
+busybox_path=""
+json_output=""
+
+# Unix tools defined here will be executed under the busybox environment
+busybox_tools="sed grep tail head tr cut paste bc awk blkid uniq"
+
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            echo "Usage: $0 [--output-mode <raw|private|both> --hash-cmd <sha1sum|sha256sum|md5sum|...> --busybox --busybox-path <.../.../busybox>]"
+            exit 1
+            ;;
+        --output-mode)
+            if [ -n "$2" ] && [ "${2#??}" != "--" ] && \
+               { [ "$2" = "raw" ] || [ "$2" = "private" ] || [ "$2" = "both" ]; } then
+                output_mode="$2"
+                shift 2
+            else
+                echo "Usage: --output-mode <raw|private|both>"
+                exit 1
+            fi
+            ;;
+        --hash-cmd)
+            if [ -n "$2" ] && [ "${2#??}" != "--" ]; then
+                hash_cmd="$2"
+                shift 2
+            else
+                echo "Usage: --hash-cmd <sha1sum|sha256sum|md5sum|...>"
+                exit 1
+            fi
+            ;;
+        --busybox|--busybox-path)
+            if [ "$1" = "--busybox-path" ] && [ -n "$2" ] && [ "${2#??}" != "--" ]; then
+                busybox_path="$2"
+                shift 2
+            else
+                busybox_path="busybox"
+                shift
+            fi
+
+            # check if we already modified these variables
+            if [ $use_busybox -eq 0 ]; then
+                hash_cmd="$busybox_path $hash_cmd"
+            fi
+            use_busybox=1
+
+            # Exit if provided path isn't recognized
+            if [ ! -x "$(command -v "$busybox_path")" ]; then
+                echo "Error: $busybox_path not found on PATH"
+                echo "Usage: --busybox-path <busybox_path>"
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            echo "Usage: $0 [--output-mode <raw|private|both> --hash-cmd <sha1sum|sha256sum|md5sum|...> --busybox --busybox-path <.../.../busybox>]"
+            exit 1
+            ;;
+    esac
+done
+
+# Check script permissions
+is_root=0
+# check if "id -u" output is numerical
+check_root1=$([ "$use_busybox" -eq 1 ] \
+    && echo "$busybox_path id -u" 2>/dev/null \
+    || echo "id -u" 2>/dev/null)
+if ! echo "$check_root1" | $busybox_path grep -qE '^[0-9]+$' 2>/dev/null; then
+    check_root1=-1
+fi
+# if "id -u" is unavailable attempt to read /root directory
+ls /root/ >/dev/null 2<&1 && check_root2=true || check_root2=false
+if [ "$check_root1" -eq 0 ] || "$check_root2"; then
+    is_root=1
 fi
 
-# Global variables (edit as needed)
-output_dir="signals"
-json_file="$output_dir/fingerprint.json"
-hash_file="$output_dir/fingerprint.out"
+# Auxiliary function used to manage the busybox environment.
+# It prefixes every busybox tool (defined in the $busybox_tools variable)
+# present in the command passed as argument, with the busybox path
+# defined by the user ($busybox_path)
+#
+# Arguments:
+#   $1 - The command to execute under the busybox environment
+set_busybox_env() {
+    cmd=""
 
-# Validate arguments
-# mode (default to "strict")
-mode_str="${1:-strict}"
-# hash algorithm cmd (default to sha256)
-hash_algo="${2:-sha256}"
-# map modes to numeric values (strict: 1, moderate: 2, relaxed: 3)
-case "$mode_str" in
-    strict)
-        mode=1
-        ;;
-    moderate)
-        mode=2
-        ;;
-    relaxed)
-        mode=3
-        ;;
-    *)
-        echo "Usage: $0 {strict|moderate|relaxed}"
-        # echo "Error: Invalid mode. Please use 'strict', 'moderate', or 'relaxed'."
-        exit 1
-        ;;
-esac
+    # shellcheck disable=SC2086
+    set -- $1
+    for var; do
+        flag=0
+        for tool in $busybox_tools; do
+            if [ "$var" = "$tool" ]; then
+                cmd="$cmd $busybox_path $var"
+                flag=1
+                break
+            fi
+        done
 
-
-# Initialization
-# create output directory and json file
-mkdir -p "$output_dir"
-# data used for generating the hash
-fingerprint_data=""
-# create the JSON file
-echo "{" > "$json_file"
-
-# Add user specified arguments to the JSON file
-echo "  \"arguments\": {" >> "$json_file"
-echo "    \"mode\": \"$mode_str\"," >> "$json_file"
-echo "    \"hash_algorithm\": \"$hash_algo\"" >> "$json_file"
-echo -e "  },\n" >> "$json_file"
-
-# Function to collect a signal, write it to a file, and prepare fingerprint data
-collect_signal() {
-    local signal_name="$1"
-    local command="$2"
-    local category="$3"
-    # signal modes (strict, moderate, relaxed)
-    local mode_check="$4"
-
-    # check signal mode
-    if (( $mode_check <= $mode )); then
-        # Execute the command using eval to handle complex shell syntax
-        local result
-        result=$(eval "$command" 2>/dev/null)
-
-        # If the result is empty or invalid, use "N/A" as the fallback
-        if [[ -z "$result" ]]; then
-            result="N/A"
+        if [ $flag -eq 0 ]; then
+            cmd="$cmd $var"
         fi
+    done
 
-        # Write the result to the JSON file under the appropriate category
-        echo "          \"$signal_name\": \"$result\"," >> "$json_file"
-
-        # Add the result to fingerprint_data if it's not "N/A"
-        if [[ "$result" != "N/A" ]]; then
-            fingerprint_data+="$result"
-        fi
-   fi
+    echo "$cmd"
 }
 
-# Create the signals category in the JSON object
-echo "  \"signals\": {" >> "$json_file"
+# Auxiliary function that handles command execution. If the
+# --busybox argument is set, the command will be runned under
+# the busybox environment, meaning that all GNU/UNIX tools specified
+# by the busybox_tools variable
+#
+# Arguments:
+#   $1 - The command to handle execution for
+handle_cmd() {
+    command="$1"
+    if [ "$use_busybox" -eq 1 ]; then
+        command=$(set_busybox_env "$command")
+    fi
+    eval "$command" 2>/dev/null
+}
 
-# Collect Hardware Signals
-echo "Collecting Hardware Signals..."
-echo "      \"hardware_signals\": {" >> "$json_file"
-# Strict: Permanent/non-volatile signals
-collect_signal "Device Model" "cat /sys/devices/virtual/dmi/id/product_name" "hardware_signals" "1"
-collect_signal "Device Vendor" "cat /sys/devices/virtual/dmi/id/sys_vendor" "hardware_signals" "1"
-collect_signal "Main Board Product UUID" "cat /sys/devices/virtual/dmi/id/product_uuid" "hardware_signals" "1"
-collect_signal "Main Board Product Serial" "cat /sys/devices/virtual/dmi/id/board_serial" "hardware_signals" "1"
-#collect_signal "Storage Devices UUIDs" "lsblk -no UUID | grep -v '^$' | tr '\n' '|' | sed 's/|$//'" "hardware_signals" "1"
-# UUIDs of active partitions currently mounted on the system
-collect_signal "Storage Devices UUIDs" \
-        "lsblk -no UUID,MOUNTPOINT | grep -E '[^[:space:]]' |
-            while IFS=' ' read -r uuid mountpoint; do \
-                if [[ -n \"\$uuid\" && -n \"\$mountpoint\" ]]; then
-                    echo -n \"\$uuid|\";
-                fi; \
-            done |
-         sed 's/|$//'" "hardware_signals" "1"
-collect_signal "Processor Model Name" "cat /proc/cpuinfo | grep 'model name' | cut -d':' -f2- | uniq | tr -d ' '" "hardware_signals" "1"
-collect_signal "Total Memory (RAM)" "cat /proc/meminfo | grep 'MemTotal: ' | cut -d':' -f2- | tr -d ' '" "hardware_signals" "1"
-collect_signal "Root Filesystem Total Disk Space" "df -h | grep /$ | tr -s ' ' | cut -d' ' -f2" "hardware_signals" "1"
-# total disk space that is currently mount on (belongs to the current linux system)
-collect_signal "Total Disk Space" "df -h --total --output=size | tail -n 1 | tr -d ' '" "hardware_signals" "1"
-# Moderate: Include semi-volatile signals
-collect_signal "Used Disk Space" "df -h --total --output=used | tail -n 1 | tr -d ' '" "hardware_signals" "2"
-collect_signal "Available Disk Space" "df -h --total --output=avail | tail -n 1 | tr -d ' '" "hardware_signals" "2"
-# Relaxed: Include volatile signals
-collect_signal "AC Power State" "grep '(Charging\|Discharging)' /sys/class/power_supply/BAT0/status" "hardware_signals" "3"
-collect_signal "Available Memory (RAM)" "cat /proc/meminfo | grep 'MemFree: ' | cut -d':' -f2- | tr -d ' '" "hardware_signals" "3"
-collect_signal "Cached Memory (RAM)" "cat /proc/meminfo | grep '^Cached: ' | cut -d':' -f2- | tr -d ' '" "hardware_signals" "3"
+# Signal collection based on current process permissions.
+# Arguments:
+#   $1 - The command in charge of the signal collection process
+#   $2 - Necessary permissions required to execute the command
+#   (0: user permissions, 1: root permissions)
+collect_signal() {
+    signal_name="$1"
+    command="$2"
+    requires_root="$3"
+
+    # Check permissions (abort if root privilege needed)
+    if [ "$requires_root" -eq 1 ] && [ "$is_root" -eq 0 ]; then
+        return
+    fi
+
+    # Execute command
+    result=""
+    result_hash=""
+    result=$(handle_cmd "$command")
+
+    # If the result is empty or invalid, use "N/A" as a fallback
+    if [ -z "$result" ]; then
+        result="N/A"
+        result_hash="N/A"
+        # Add N/A results to final hash
+        # return
+    # otherwise, compute the hash
+    else
+        result_hash=$(handle_cmd "printf \"%s\" \"$result\" | $hash_cmd")
+        # Remove trailing '-'
+        result_hash=${result_hash%% *}
+
+        # Validate hash generated (maybe check syntax of hash using a regex expression)
+        if [ ! "$result_hash" ] || [ -z "$result_hash" ]; then
+            echo "Error: $hash_cmd failed"
+            echo "Usage: --hash-cmd <sha1sum|sha256sum|md5sum|...>"
+            echo "Error: $busybox_path $hash_cmd command is unknown"
+            exit 1
+        fi
+    fi
+
+    # Append data to JSON
+    case "$output_mode" in
+        raw)
+            json_output="$json_output      \"$signal_name\": \"$result\",\n"
+            ;;
+        private)
+            json_output="$json_output      \"$signal_name\": \"$result_hash\",\n"
+            ;;
+        both)
+            json_output="$json_output      \"$signal_name\": {\n"
+            json_output="$json_output           \"raw\": \"$result\",\n"
+            json_output="$json_output           \"hash\": \"$result_hash\"\n"
+            json_output="$json_output       },\n"
+            ;;
+    esac
+
+    # Add valid results to fingerprint_data
+    if [ -n "$result" ]; then
+        fingerprint_data="$fingerprint_data$result"
+        #if [ -z "$fingerprint_data ]; then
+        #    fingerprint_data="$fingerprint_data,$result"
+        #fi
+    fi
+}
+
+
+# Initialize JSON
+json_output="{\n"
+
+# Collect hardware signals
+json_output="$json_output  \"hardware_signals\": {\n"
+collect_signal "Device Model" "cat /sys/devices/virtual/dmi/id/product_name" 0
+collect_signal "Device Vendor" "cat /sys/devices/virtual/dmi/id/sys_vendor" 0
+collect_signal "Main Board Product UUID" "cat /sys/devices/virtual/dmi/id/product_uuid" 1
+collect_signal "Main Board Product Serial" "cat /sys/devices/virtual/dmi/id/board_serial" 1
+# test this three commands in order:
+#   - ls -A /dev/disk/by-uuid/
+#   - lsblk -o UUID
+#   - blkid
+collect_signal "Storage Devices UUIDs" "(uuids=\$( ls -A /dev/disk/by-uuid/ 2>/dev/null ); \
+    [ -z \"\$uuids\" ] && uuids=\$( lsblk -o UUID 2>/dev/null ); [ -z \"\$uuids\" ] && \
+    uuids=\$( blkid 2>/dev/null | grep 'UUID=' | sed 's/.*UUID=\"\(.*\)\".*/\1/' ); \
+    echo \"\$uuids\" | paste -sd '|')" 0
+collect_signal "Processor Model Name" "{ grep 'Processor' /proc/cpuinfo; grep 'model name' /proc/cpuinfo; } | uniq | sed 's/^[^:]*:\s*//'" 0
+collect_signal "Total Memory (RAM)" "cat /proc/meminfo | grep '^MemTotal: ' | cut -d':' -f2- | tr -d ' '" 0
+collect_signal "Available Memory (RAM)" "cat /proc/meminfo | grep '^MemFree: ' | cut -d':' -f2- | tr -d ' '" 0
+collect_signal "Cached Memory (RAM)" "cat /proc/meminfo | grep '^Cached: ' | cut -d':' -f2- | tr -d ' '" 0
+# This df commands obtain the combined disk space (of all partitions found)
+collect_signal "Available Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f4 | awk '{s+=\$1} END {print s}'" 0
+collect_signal "Total Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f2 | awk '{s+=\$1} END {print s}'" 0
+collect_signal "Used Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f3 | awk '{s+=\$1} END {print s}'" 0
+collect_signal "AC Power State" "cat /sys/class/power_supply/{AC,ACAD}/online 2>/dev/null || cat /sys/class/power_supply/BAT*/status 2>/dev/null" 0
 # Remove last comma in the category (fix formatting)
-sed -i '$ s/,$//' "$json_file"
-echo -e "      },\n" >> "$json_file"
+json_output="${json_output%???}"
+json_output="$json_output\n  },\n"
 
-# Collect Software Signals
-echo "Collecting Software Signals..."
-echo "      \"software_signals\": {" >> "$json_file"
-# Strict: Permanent/non-volatile signals
-collect_signal "machine-id" "cat /etc/machine-id" "software_signals" "1"
-# Moderate: Include semi-volatile signals
-collect_signal "device hostid" "hostid" "software_signals" "2"
-collect_signal "hostname" "hostname" "software_signals" "2"
-collect_signal "Linux session ID" "cat /proc/self/sessionid" "software_signals" "2"
-collect_signal "Linux user ID" "id -u" "software_signals" "2"
-# Relaxed: Include volatile signals
-collect_signal "random boot UUID" "cat /proc/sys/kernel/random/boot_id" "software_signals" "3"
+# Collect software signals
+json_output="$json_output  \"software_signals\": {\n"
+collect_signal "Machine ID" "cat /etc/machine-id" 0
+collect_signal "Device hostid" "hostid" 0
+collect_signal "Hostname" "echo \${HOSTNAME:-$(hostname 2>/dev/null)}" 0
+collect_signal "Random Boot UUID" "cat /proc/sys/kernel/random/boot_id" 0
+collect_signal "Linux Session ID" "cat /proc/self/sessionid" 0
+#collect_signal "Linux User ID" "id | sed -n 's/.*uid=\([0-9]*\)(.*/\\\\1/p'" 0
+collect_signal "Linux User ID" "id | awk -F'[=(]' '{print \$2}'" 0
+
 # Remove last comma in the category (fix formatting)
-sed -i '$ s/,$//' "$json_file"
-echo -e "      },\n" >> "$json_file"
+json_output="${json_output%???}"
+json_output="$json_output\n  },\n"
 
-# Collect Network-related Signals
-echo "Collecting Network-related Signals..."
-echo "      \"network_signals\": {" >> "$json_file"
-iface=$(route | grep default | tr -s ' ' | cut -d' ' -f8)
-# Strict: Permanent/non-volatile signals
-collect_signal "MAC Address" "cat /sys/class/net/$iface/address" "network_signals" "1"
-# Moderate: Include semi-volatile signals
-collect_signal "IP Address" "ip route get 1.0.0.0 | head -n 1 | cut -d' ' -f7" "network_signals" "2"
-collect_signal "Main Network Interface" "echo $iface" "network_signals" "2"
+# Collect network signals
+json_output="$json_output  \"network_signals\": {\n"
+# Obtain default interface
+default_iface=$( handle_cmd "ip route | grep default | tail -n 1 | cut -d' ' -f5" )
+# If no default route is found, find the first non-loopback interface
+# with an IP address
+if [ -z "$default_iface" ]; then
+    default_iface=$( handle_cmd "ip addr show | grep 'inet ' | grep -v 'lo$' | head -n 1 | sed -e 's/^.* //'" )
+fi
+
+collect_signal "IP Address" "if [ -z \"\$( echo $default_iface | tr -d '[:space:]' )\" ]; then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1; fi" 0
+collect_signal "MAC Address" "cat /sys/class/net/\$default_iface/address" 0
+collect_signal "Main Network Interface" "echo $default_iface" 0
 # Remove last comma in the category (fix formatting)
-sed -i '$ s/,$//' "$json_file"
-echo -e "      },\n" >> "$json_file"
+json_output="${json_output%???}"
+json_output="$json_output\n  },\n"
 
-# Collect Operating System (OS) Signals
-echo "Collecting OS Signals..."
-echo "      \"os_signals\": {" >> "$json_file"
-# Strict: Permanent/non-volatile signals
-collect_signal "OS Locale Settings" "cat /etc/locale.conf | grep '^LANG=' | cut -d'=' -f2-" "os_signals" "1"
-collect_signal "Kernel Version" "cat /proc/version | cut -d' ' -f3" "os_signals" "1"
-collect_signal "OS Version" "cat /etc/os-release | grep '^PRETTY_NAME=' | cut -d'\"' -f2" "os_signals" "1"
+# Collect OS signals
+json_output="$json_output  \"os_signals\": {\n"
+collect_signal "OS Locale Settings" "echo $LANG" 0
+collect_signal "Kernel Version" "cat /proc/sys/kernel/osrelease" 0
+collect_signal "OS Version" "cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2 | tr -d '\"'" 0
 # Remove last comma in the category (fix formatting)
-sed -i '$ s/,$//' "$json_file"
-echo -e "      }" >> "$json_file"
+json_output="${json_output%???}"
+json_output="$json_output\n  },\n"
 
-# Close the signals category
-echo -e "  },\n" >> "$json_file"
-
-# Collection completed
-echo -e "Signal collection completed!\n"
-
-# Generate the machine fingerprint hash
-echo "Generating machine fingerprint..."
-if [[ -n "$fingerprint_data" ]]; then
-    fingerprint_hash=$(echo -n "$fingerprint_data" | $hash_algo"sum" | cut -d' ' -f1)
+# Generate final fingerprinting hash
+if [ -n "$fingerprint_data" ]; then
+    fingerprint_hash=$(handle_cmd "printf \"%s\" \"$fingerprint_data\" | $hash_cmd | cut -d' ' -f1")
     # Add it to the JSON file
-    echo "  \"fingerprint_hash\": {" >> "$json_file"
-    echo "    \"hash_digest\": \"$fingerprint_hash\"," >> "$json_file"
-    echo "    \"algorithm\": \"$hash_algo\"" >> "$json_file"
-    echo "  }" >> "$json_file"
-
-    # Add hash to a separe file
-    echo -e "$fingerprint_hash" > "$hash_file"
-    echo "Machine Fingerprint (hash digest): $fingerprint_hash"
+    json_output="$json_output  \"fingerprint_hash\": {\n"
+    json_output="$json_output      \"hash_digest\": \"$fingerprint_hash\",\n"
+    json_output="$json_output      \"hash_algorithm\": \"$hash_cmd\"\n"
+    json_output="$json_output  }\n"
 else
     echo "No valid signals collected for fingerprinting."
 fi
 
-# close the JSON object
-echo -e "}" >> "$json_file"
+# Close JSON
+json_output="$json_output}\n"
 
-echo -e "\nOutput directory: $output_dir"
+# Output JSON to standard output
+$busybox_path printf "%b" "$json_output"
 
