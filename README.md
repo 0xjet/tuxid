@@ -30,8 +30,6 @@ A Linux fingerprinting tool
 | Storage Devices UUIDs                	| permanent           	    | Yes             	    | High (128 bits per UUID)  | local           	    | local           	        | ls /dev/disk/by-uuid                                                                	|
 | Processor Model Name (CPU)           	| permanent          	    | No               	    | Low (~5 bits)             | local           	    | manufacturer              | cat /proc/cpuinfo  \| grep 'model name' \| cut -d':' -f2- \| uniq \| tr -d ' '        |
 | Total Memory (RAM)                   	| permanent          	    | No              	    | Moderate (10–15 bits)     | local           	    | physical                  | cat /proc/meminfo \| grep "MemTotal: " \| cut -d':' -f2- \| tr -d ' '                 |
-| Available Memory (RAM)               	| volatile           	    | Yes              	    | Moderate (10–15 bits)     | local           	    | local            	        | cat /proc/meminfo \| grep "MemFree: " \| cut -d':' -f2- \| tr -d ' '                	|
-| Cached Memory (RAM)                  	| volatile           	    | Yes              	    | Moderate (10–15 bits)     | local           	    | local            	        | cat /proc/meminfo \| grep "^Cached: " \| cut -d':' -f2- \| tr -d ' '                	|
 | Root Filesystem Total Disk Space     	| permanent          	    | Yes              	    | Moderate (10–15 bits)     | local                 | local root, physical      | df -h \| grep \\/$ \| tr -s ' ' \| cut -d' ' -f2                                      |
 
 ### Software Signals
