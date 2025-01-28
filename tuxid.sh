@@ -108,7 +108,7 @@ handle_cmd() {
 # Arguments:
 #   $1 - The command in charge of the signal collection process
 #   $2 - Necessary permissions required to execute the command
-#   (0: user permissions, 1: root permissions)
+#   (0: local user, 1: root)
 #============================================================================
 collect_signal() {
     signal_name="$1"
@@ -203,13 +203,12 @@ get_fingerprint() {
         echo \"\$uuids\" | paste -sd '|')" 0
     collect_signal "Processor Model Name" "{ grep 'Processor' /proc/cpuinfo; grep 'model name' /proc/cpuinfo; } | uniq | sed 's/^[^:]*:\s*//'" 0
     collect_signal "Total Memory (RAM)" "cat /proc/meminfo | grep '^MemTotal: ' | cut -d':' -f2- | tr -d ' '" 0
-    collect_signal "Available Memory (RAM)" "cat /proc/meminfo | grep '^MemFree: ' | cut -d':' -f2- | tr -d ' '" 0
-    collect_signal "Cached Memory (RAM)" "cat /proc/meminfo | grep '^Cached: ' | cut -d':' -f2- | tr -d ' '" 0
-    # These df commands obtain the combined disk space (of all partitions found)
-    collect_signal "Available Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f4 | awk '{s+=\$1} END {print s}'" 0
+    #collect_signal "Available Memory (RAM)" "cat /proc/meminfo | grep '^MemFree: ' | cut -d':' -f2- | tr -d ' '" 0
+    #collect_signal "Cached Memory (RAM)" "cat /proc/meminfo | grep '^Cached: ' | cut -d':' -f2- | tr -d ' '" 0
+    #collect_signal "Available Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f4 | awk '{s+=\$1} END {print s}'" 0
     collect_signal "Total Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f2 | awk '{s+=\$1} END {print s}'" 0
-    collect_signal "Used Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f3 | awk '{s+=\$1} END {print s}'" 0
-    collect_signal "AC Power State" "cat /sys/class/power_supply/{AC,ACAD}/online 2>/dev/null || cat /sys/class/power_supply/BAT*/status 2>/dev/null" 0
+    #collect_signal "Used Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f3 | awk '{s+=\$1} END {print s}'" 0
+    #collect_signal "AC Power State" "cat /sys/class/power_supply/{AC,ACAD}/online 2>/dev/null || cat /sys/class/power_supply/BAT*/status 2>/dev/null" 0
  
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
@@ -258,6 +257,7 @@ get_fingerprint() {
     collect_signal "OS Locale Settings" "echo $LANG" 0
     collect_signal "Kernel Version" "cat /proc/sys/kernel/osrelease" 0
     collect_signal "OS Version" "cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2 | tr -d '\"'" 0
+    collect_signal "Last Boot Time" "uptime -s" 0
 
     # Fix formatting (remove last comma in the category)
 
