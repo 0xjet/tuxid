@@ -222,9 +222,9 @@ get_fingerprint() {
     collect_signal "Device hostid" "hostid" 0
     collect_signal "Hostname" "echo \${HOSTNAME:-$(hostname 2>/dev/null)}" 0
     collect_signal "Random Boot UUID" "cat /proc/sys/kernel/random/boot_id" 0
-    collect_signal "Linux Session ID" "cat /proc/self/sessionid" 0
+    #collect_signal "Linux Session ID" "cat /proc/self/sessionid" 0
     #collect_signal "Linux User ID" "id | sed -n 's/.*uid=\([0-9]*\)(.*/\\\\1/p'" 0
-    collect_signal "Linux User ID" "id | awk -F'[=(]' '{print \$2}'" 0
+    #collect_signal "Linux User ID" "id | awk -F'[=(]' '{print \$2}'" 0
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
