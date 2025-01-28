@@ -60,6 +60,7 @@ A Linux fingerprinting tool
 | OS Locale Settings    | Volatile                  | Yes                   | Low (5–10 bits)       | local                 | local (per session), local root (system-wide) | cat /etc/locale.conf \| grep "^LANG=" \| cut -d'=' -f2-    |
 | Kernel Version        | Permanent                 | No (updatable)        | Low (10–15 bits)      | local                 | local root (by update)                        | cat /proc/version \| cut -d' ' -f3 |
 | OS Version            | Permanent                 | No (updatable)        | Low (10–15 bits)      | local                 | local root (by update)                        | cat /etc/os-release \| grep "^PRETTY_NAME=" \| cut -d'"' -f2   |
+| Last boot time        | Volatile                  | No (updatable)        | Low (10–15 bits)      | local                 | local root (by reboot)                        | uptime -s (many others)  |
 
 ## References
 
