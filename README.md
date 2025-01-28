@@ -1,4 +1,4 @@
-# linid
+# tuxid
 A Linux fingerprinting tool
 
 ## Methodology
