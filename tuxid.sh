@@ -10,7 +10,7 @@ output modes (raw, private and both) and the number of signals taken
 into account depends on the process available permissions (e.g. local/root
 permissions)
 
-Usage: sh linid.sh --output-mode {output_mode} --hash-cmd {hash_command}
+Usage: sh tuxid.sh --output {output_mode} --hash-cmd {hash_command}
 Output Modes (default to private):
 - raw       : only signal outputs are shown
 - private   : only resulting hashes are shown
@@ -18,7 +18,7 @@ Output Modes (default to private):
 Hash Command: sha1sum, sha256sum, md5sum, etc
 
 Busybox Suite (not used by default):
-    - e.g. sh linid.sh --busybox --busybox-path "/.../.../busybox"
+    - e.g. sh tuxid.sh --busybox --busybox-path "/.../.../busybox"
 - --busybox      : use the busybox suite to handle unix/linux commands
 - --busybox-path : path to the busybox binary
 '
@@ -203,13 +203,8 @@ get_fingerprint() {
         echo \"\$uuids\" | paste -sd '|')" 0
     collect_signal "Processor Model Name" "{ grep 'Processor' /proc/cpuinfo; grep 'model name' /proc/cpuinfo; } | uniq | sed 's/^[^:]*:\s*//'" 0
     collect_signal "Total Memory (RAM)" "cat /proc/meminfo | grep '^MemTotal: ' | cut -d':' -f2- | tr -d ' '" 0
-    #collect_signal "Available Memory (RAM)" "cat /proc/meminfo | grep '^MemFree: ' | cut -d':' -f2- | tr -d ' '" 0
-    #collect_signal "Cached Memory (RAM)" "cat /proc/meminfo | grep '^Cached: ' | cut -d':' -f2- | tr -d ' '" 0
-    #collect_signal "Available Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f4 | awk '{s+=\$1} END {print s}'" 0
     collect_signal "Total Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f2 | awk '{s+=\$1} END {print s}'" 0
-    #collect_signal "Used Disk Space" "df 2>/dev/null | tail -n +2 | tr -s ' ' | cut -d' ' -f3 | awk '{s+=\$1} END {print s}'" 0
-    #collect_signal "AC Power State" "cat /sys/class/power_supply/{AC,ACAD}/online 2>/dev/null || cat /sys/class/power_supply/BAT*/status 2>/dev/null" 0
- 
+
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
     json_output="$json_output\n  },\n"
@@ -222,9 +217,6 @@ get_fingerprint() {
     collect_signal "Device hostid" "hostid" 0
     collect_signal "Hostname" "echo \${HOSTNAME:-$(hostname 2>/dev/null)}" 0
     collect_signal "Random Boot UUID" "cat /proc/sys/kernel/random/boot_id" 0
-    #collect_signal "Linux Session ID" "cat /proc/self/sessionid" 0
-    #collect_signal "Linux User ID" "id | sed -n 's/.*uid=\([0-9]*\)(.*/\\\\1/p'" 0
-    #collect_signal "Linux User ID" "id | awk -F'[=(]' '{print \$2}'" 0
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
@@ -239,11 +231,15 @@ get_fingerprint() {
     # If no default route is found, find the first non-loopback interface
     # with an IP address
     if [ -z "$default_iface" ]; then
-        default_iface=$( handle_cmd "ip addr show | grep 'inet ' | grep -v 'lo$' | head -n 1 | sed -e 's/^.* //'" )
+        #default_iface=$( handle_cmd "ip addr show | grep 'inet ' | grep -v 'lo$' | head -n 1 | sed -e 's/^.* //'" )
+        default_iface=$( handle_cmd "ip link | grep 'state UP' | awk '/BROADCAST,MULTICAST,UP,LOWER_UP/' | cut -d' ' -f2 | tr -d ':'" )
     fi
 
-    collect_signal "IP Address" "if [ -z \"\$( echo $default_iface | tr -d '[:space:]' )\" ]; then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1; fi" 0
-    collect_signal "MAC Address" "cat /sys/class/net/\$default_iface/address" 0
+    collect_signal "IP Address" "if [ -z \"\$( echo $default_iface | tr -d '[:space:]' )\" ]; then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1 | head -n 1; fi" 0
+    # Root privileges needed to read file /sys/class/$iface/address
+    #   - ip link can be executed w/o root privileges
+    collect_signal "MAC Address" "([ -n \"$default_iface\" ] && ip link | grep -A 1 \" \$default_iface:\" | tail -n 1 | tr -s ' ' | cut -d' ' -f3 2>/dev/null) ||
+                                   cat /sys/class/net/\$default_iface/address" 0
     collect_signal "Main Network Interface" "echo $default_iface" 0
 
     # Fix formatting (remove last comma in the category)
@@ -257,7 +253,7 @@ get_fingerprint() {
     collect_signal "OS Locale Settings" "echo $LANG" 0
     collect_signal "Kernel Version" "cat /proc/sys/kernel/osrelease" 0
     collect_signal "OS Version" "cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2 | tr -d '\"'" 0
-    collect_signal "Last Boot Time" "uptime -s" 0
+    collect_signal "Last Boot Time" "grep btime /proc/stat | cut -d' ' -f2- 2>/dev/null" 0
 
     # Fix formatting (remove last comma in the category)
 
@@ -297,7 +293,7 @@ main() {
     json_output=""
 
     # Unix tools defined here will be executed under the busybox environment
-    busybox_tools="sed grep tail head tr cut paste bc awk blkid uniq"
+    busybox_tools="sed grep tail head tr cut paste bc awk blkid uniq printf"
 
     # Parse arguments
     while [ $# -gt 0 ]; do
@@ -349,7 +345,7 @@ main() {
                 ;;
             *)
                 echo "Unknown argument: $1"
-                echo "Usage: $0 [--output-mode <raw|private|both> --hash-cmd <sha1sum|sha256sum|md5sum|...> --busybox --busybox-path <.../.../busybox>]"
+                echo "Usage: $0 [--output <raw|private|both> --hash-cmd <sha1sum|sha256sum|md5sum|...> --busybox --busybox-path <.../.../busybox>]"
                 exit 1
                 ;;
         esac
