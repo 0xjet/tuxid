@@ -42,7 +42,6 @@ db = SQLAlchemy(app)
 def init_db():
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
 
 # Database model
 class Tuxid(db.Model):
