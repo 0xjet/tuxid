@@ -1,0 +1,43 @@
+# Gradle files
+.gradle/
+build/
+local.properties
+
+# Kotlin build outputs
+bin/
+out/
+
+# IDE-specific files
+.idea/
+
+# Kotlin-specific file patterns
+*.kotlin_cache/
+*.kotlin_metadata/
+
+# User-specific configuration files
+*.iml
+
+# Gradle wrapper
+gradle-wrapper.jar
+
+# Logs
+*.log
+*.hprof
+
+# Java/Kotlin bytecode
+*.class
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keystore files
+*.jks
+*.keystore
+
+# Miscellaneous files
+*.swp
+*~.nib
+*.sublime-workspace
+*.sublime-project
+

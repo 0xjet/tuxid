@@ -102,6 +102,7 @@ handle_cmd() {
         command=$(set_busybox_env "$command")
     fi
 
+    #echo "Command: '$command'\n"
     eval "$command" 2>/dev/null
 }
 
@@ -129,6 +130,7 @@ collect_signal() {
     result=""
     result_hash=""
     result=$(handle_cmd "$command")
+    #echo "Result: $command\n"
 
     # If the result is empty or invalid, use "N/A" as a fallback
     if [ -z "$result" ]; then
@@ -218,6 +220,12 @@ get_fingerprint() {
     #   if available. If not, try to compute the sum directly.
     #   - /proc/partitions not used because it requires root permissions in some hosts.
     #
+    #collect_signal "Total Disk Space" "( df 2>/dev/null | sed '1d' | sed 's/\ \ */ /g' | \
+    #    cut -d' ' -f2 | paste -sd+ - | (bc || \$busybox_path bc) ) || \
+    #    (sum=0; for size in \
+    #        \$( ( df -k 2>/dev/null || df 2>/dev/null ) | sed '1d' | sed 's/\ \ */ /g'| \
+    #              cut -d' ' -f2 ); \
+    #    do sum=\$((sum+size)); done; echo \$sum)" 0
     collect_signal "Total Disk Space" "\
         ( df 2>/dev/null | sed '1d' | sed 's/\ \ */ /g' | cut -d' ' -f2 | paste -sd+ - | (bc || \$busybox_path bc)) || \
         ( df 2>/dev/null | tail -n +2 | sed 's/\ \ */ /g' | cut -d' ' -f2 | { awk '{s+=\$1} END {print s}' 2>/dev/null || \
@@ -225,6 +233,17 @@ get_fingerprint() {
         (sum=0; for size in \
             \$( ( df -k 2>/dev/null || df 2>/dev/null ) | sed '1d' | sed 's/\ \ */ /g' | cut -d' ' -f2 ); \
         do sum=\$((sum+size)); done; echo \$sum)" 0
+
+    #collect_signal "Total Disk Space" "df 2>/dev/null | sed '1d' | sed 's/\ \ */ /g' | \
+    #    cut -d' ' -f2 | paste -sd+ - | (bc || $busybox_path bc)" 0
+    #collect_signal "Total Disk Space" "sum=0; for size in \
+    #    \$( { sed '1d' /proc/partitions 2>/dev/null | sed 's/\ \ */ /g' | cut -d' ' -f4; } || \
+    #        { df 2>/dev/null | sed '1d' | sed 's/ \+/ /g' | cut -d' ' -f2; } ); \
+    #    do sum=\$((sum+size)); done; echo \$sum" 0
+    #collect_signal "Total Disk Space" "sum=0; for size in \
+    #    \$( tail -n +2 /proc/partitions 2>/dev/null | sed 's/\ \ */ /g' | cut -d' ' -f4 ); \
+    #    do sum=\$((sum+size)); done; [ \$sum -eq 0 ] && echo -n '' || echo \$sum" 0
+
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
@@ -252,16 +271,32 @@ get_fingerprint() {
     # If no default route is found, find the first non-loopback interface
     # with an IP address
     if [ -z "$default_iface" ]; then
-        default_iface=$( handle_cmd "ip route get 1.1.1.1 2>/dev/null | sed -n 's/.*dev \([^ ]*\).*/\1/p'" )
+        #default_iface=$( handle_cmd "ip link | grep 'state UP mode DEFAULT' | \
+        #   grep 'BROADCAST,MULTICAST,UP,LOWER_UP' | cut -d' ' -f2 | sed 's/://g' | \
+        #   head -n 1" )
+        #default_iface=$( handle_cmd "ip link | grep 'state UP' | \
+        #   grep 'BROADCAST,MULTICAST,UP,LOWER_UP' | cut -d' ' -f2 | \
+        #   sed 's/://g' | head -n 1" )
+        default_iface=$( handle_cmd "ip route get 8.8.8.8 2>/dev/null | sed -n 's/.*dev \([^ ]*\).*/\1/p'" )
     fi
 
     collect_signal "Private IP Address" "if [ -z \"\$( echo $default_iface | sed 's/[[:space:]]//g' )\" ]; \
         then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1 | \
         head -n 1; fi" 0
     # Query ipecho.net domain
+    #collect_signal "Public IP Address" "( curl ipecho.net/plain 2>/dev/null ) || \
+    #   ( printf \"GET /plain HTTP/1.1\\\r\\\nHost: ipecho.net\\\r\\\nConnection: close\\\r\\\n\\\r\\\n\" | \
+    #     nc ipecho.net 80 | tail -n 1 )" 0
+    # Root privileges needed to read file /sys/class/$iface/address
+    #   - ip link can be executed w/o root privileges
     collect_signal "MAC Address" "([ -n \"$default_iface\" ] && ip link | grep -A 1 \" \$default_iface:\" | \
         tail -n 1 |  sed 's/\ \ */ /g' | cut -d' ' -f3 2>/dev/null) || \
         cat /sys/class/net/\$default_iface/address" 0
+        #tail -n 1 |  sed 's/[[:space:]]\\+/ /g' | cut -d' ' -f3 2>/dev/null) || \
+    #collect_signal "MAC Address" "(ip link 2>/dev/null | grep -A 1 \" \$default_iface:\" | tail -n 1 | \
+    #    while read -r line; do echo \"\${line#\"\${line%%[![:space:]]*}\"}\"; done | \
+    #    cut -d' ' -f2 2>/dev/null) || cat /sys/class/net/\$default_iface/address" 0
+    collect_signal "Main Network Interface" "echo $default_iface" 0
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
@@ -312,7 +347,9 @@ main() {
     json_output=""
 
     # Unix tools defined here will be executed under the busybox environment
-    busybox_tools="sed grep tail head cut paste blkid uniq printf"
+    #busybox_tools="sed grep tail head tr cut paste bc awk blkid uniq printf"
+    #busybox_tools="sed grep tail head cut paste blkid uniq printf"
+    busybox_tools="sed grep tail head cut paste blkid uniq nc printf"
 
     # Parse arguments
     while [ $# -gt 0 ]; do
