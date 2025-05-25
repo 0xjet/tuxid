@@ -10,17 +10,17 @@ output modes (raw, private and both) and the number of signals taken
 into account depends on the process available permissions (e.g. local/root
 permissions)
 
-Usage: sh tuxid.sh --output {output_mode} --hash-cmd {hash_command}
+Usage: sh tuxid.sh --output {output_mode} --hash {hash_command}
 Output Modes (default to private):
 - raw       : only signal outputs are shown
 - private   : only resulting hashes are shown
 - both      : both signal outputs and hashes are shown
 Hash Command: sha1sum, sha256sum, md5sum, etc
 
-Busybox Suite (not used by default):
-    - e.g. sh tuxid.sh --busybox --busybox-path "/.../.../busybox"
-- --busybox      : use the busybox suite to handle unix/linux commands
-- --busybox-path : path to the busybox binary
+Suite (not used by default):
+    - e.g. sh tuxid.sh --suite "/.../.../suite"
+- --suite      : use a software suite to handle unix/linux commands
+- --suite-path : path to the software suite binary
 '
 
 
@@ -33,10 +33,10 @@ check_root() {
     is_root=0
 
     # check if "id -u" output is numerical
-    check_root1=$([ "$use_busybox" -eq 1 ] \
-        && echo "$busybox_path id -u" 2>/dev/null \
+    check_root1=$([ "$use_suite" -eq 1 ] \
+        && echo "$suite_path id -u" 2>/dev/null \
         || echo "id -u" 2>/dev/null)
-    if ! echo "$check_root1" | $busybox_path grep -qE '^[0-9]+$' 2>/dev/null; then
+    if ! echo "$check_root1" | $suite_path grep -qE '^[0-9]+$' 2>/dev/null; then
         check_root1=-1
     fi
     # if "id -u" is unavailable attempt to read /root directory
@@ -48,17 +48,17 @@ check_root() {
 
 
 #============================================================================
-# set_busybox_env()
+# set_suite_env()
 #
-# Auxiliary function used to manage the busybox environment.
-# It prefixes every busybox tool (defined in the $busybox_tools variable)
-# present in the command passed as argument, with the busybox path
-# defined by the user ($busybox_path)
+# Auxiliary function used to manage the suite environment.
+# It prefixes every suite tool (defined in the $suite_tools variable)
+# present in the command passed as argument, with the suite path
+# defined by the user ($suite_path)
 #
 # Arguments:
-#   $1 - The command to execute under the busybox environment
+#   $1 - The command to execute under the suite environment
 #============================================================================
-set_busybox_env() {
+set_suite_env() {
     cmd=""
 
     # Disable globbing
@@ -69,9 +69,9 @@ set_busybox_env() {
     set +f
     for var; do
         flag=0
-        for tool in $busybox_tools; do
+        for tool in $suite_tools; do
             if [ "$var" = "$tool" ]; then
-                cmd="$cmd $busybox_path $var"
+                cmd="$cmd $suite_path $var"
                 flag=1
                 break
             fi
@@ -89,17 +89,17 @@ set_busybox_env() {
 # handle_cmd()
 #
 # Auxiliary function that handles command execution. If the
-# --busybox argument is set, the command will be runned under
-# the busybox environment, meaning that all GNU/UNIX tools specified
-# by the busybox_tools variable
+# --suite argument is set, the command will be runned under
+# the suite environment, meaning that all GNU/UNIX tools specified
+# by the suite_tools variable
 #
 # Arguments:
 #   $1 - The command to handle execution for
 #============================================================================
 handle_cmd() {
     command="$1"
-    if [ "$use_busybox" -eq 1 ]; then
-        command=$(set_busybox_env "$command")
+    if [ "$use_suite" -eq 1 ]; then
+        command=$(set_suite_env "$command")
     fi
 
     eval "$command" 2>/dev/null
@@ -144,9 +144,9 @@ collect_signal() {
 
         # Validate hash generated (maybe check syntax of hash using a regex expression)
         if [ ! "$result_hash" ] || [ -z "$result_hash" ]; then
-            echo "Error: $hash_cmd failed"
-            echo "Usage: --hash-cmd <sha1sum|sha256sum|md5sum|...>"
-            echo "Error: $busybox_path $hash_cmd command is unknown"
+            echo "Error: $hash failed"
+            echo "Usage: --hash <sha1sum|sha256sum|md5sum|...>"
+            echo "Error: $suite_path $hash_cmd command is unknown"
             exit 1
         fi
     fi
@@ -209,7 +209,7 @@ get_fingerprint() {
         uuids=\$( blkid 2>/dev/null | grep 'UUID=' | sed 's/.*UUID=\"\(.*\)\".*/\1/' ); \
         echo \"\$uuids\" | paste -sd '|')" 0
     collect_signal "Processor Model Name" "{ grep 'Processor' /proc/cpuinfo; grep 'model name' \
-        /proc/cpuinfo; } | uniq | sed 's/^[^:]*:\s*//'" 0
+        /proc/cpuinfo; } | uniq | sed 's/^[^:]*:[ \t]*//'" 0
     collect_signal "Total Memory (RAM)" "cat /proc/meminfo | grep '^MemTotal: ' | \
         cut -d':' -f2- | sed 's/ //g'" 0
     #
@@ -219,9 +219,9 @@ get_fingerprint() {
     #   - /proc/partitions not used because it requires root permissions in some hosts.
     #
     collect_signal "Total Disk Space" "\
-        ( df 2>/dev/null | sed '1d' | sed 's/\ \ */ /g' | cut -d' ' -f2 | paste -sd+ - | (bc || \$busybox_path bc)) || \
+        ( df 2>/dev/null | sed '1d' | sed 's/\ \ */ /g' | cut -d' ' -f2 | paste -sd+ - | (bc || \$suite_path bc)) || \
         ( df 2>/dev/null | tail -n +2 | sed 's/\ \ */ /g' | cut -d' ' -f2 | { awk '{s+=\$1} END {print s}' 2>/dev/null || \
-            \$busybox_path awk '{s+=\$1} END {print s}' 2>/dev/null ; } ) || \
+            \$suite_path awk '{s+=\$1} END {print s}' 2>/dev/null ; } ) || \
         (sum=0; for size in \
             \$( ( df -k 2>/dev/null || df 2>/dev/null ) | sed '1d' | sed 's/\ \ */ /g' | cut -d' ' -f2 ); \
         do sum=\$((sum+size)); done; echo \$sum)" 0
@@ -255,13 +255,17 @@ get_fingerprint() {
         default_iface=$( handle_cmd "ip route get 1.1.1.1 2>/dev/null | sed -n 's/.*dev \([^ ]*\).*/\1/p'" )
     fi
 
+    # Private IP address
+    #   - for public IP: query ipecho.net domain
     collect_signal "Private IP Address" "if [ -z \"\$( echo $default_iface | sed 's/[[:space:]]//g' )\" ]; \
         then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1 | \
         head -n 1; fi" 0
-    # Query ipecho.net domain
+    #collect_signal "Public IP Address" "wget -qO- ifconfig.co" 0
+    collect_signal "Public IP Address" "printf \"GET /ip HTTP/1.0\r\nHost: ifconfig.me\r\n\r\n\" | nc ifconfig.me 80 | tail -n1" 0
     collect_signal "MAC Address" "([ -n \"$default_iface\" ] && ip link | grep -A 1 \" \$default_iface:\" | \
         tail -n 1 |  sed 's/\ \ */ /g' | cut -d' ' -f3 2>/dev/null) || \
         cat /sys/class/net/\$default_iface/address" 0
+    collect_signal "Main Network Interface" "echo $default_iface" 0
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
@@ -296,7 +300,7 @@ get_fingerprint() {
     json_output="$json_output}\n"
 
     # Output JSON to standard output
-    $busybox_path printf "%b" "$json_output"
+    $suite_path printf "%b" "$json_output"
 }
 
 #============================================================================
@@ -307,18 +311,18 @@ main() {
     # Default parameter values
     output_mode="private"
     hash_cmd="sha1sum"
-    use_busybox=0
-    busybox_path=""
+    use_suite=0
+    suite_path=""
     json_output=""
 
-    # Unix tools defined here will be executed under the busybox environment
-    busybox_tools="sed grep tail head cut paste blkid uniq printf"
+    # Unix tools defined here will be executed under the suite environment
+    suite_tools="sed grep tail head cut paste blkid uniq nc printf"
 
     # Parse arguments
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
-                echo "Usage: $0 [--output <raw|private|both> --hash <sha1sum|sha256sum|md5sum|...> --busybox --busybox-path <.../.../busybox>]"
+                echo "Usage: $0 [--output <raw|private|both> --hash <sha1sum|sha256sum|md5sum|...> --suite --suite-path <.../.../suite>]"
                 exit 1
                 ;;
             --output)
@@ -340,31 +344,31 @@ main() {
                     exit 1
                 fi
                 ;;
-            --busybox|--busybox-path)
-                if [ "$1" = "--busybox-path" ] && [ -n "$2" ] && [ "${2#??}" != "--" ]; then
-                    busybox_path="$2"
+            --suite)
+                if [ "$1" = "--suite" ] && [ -n "$2" ] && [ "${2#??}" != "--" ]; then
+                    suite_path="$2"
                     shift 2
                 else
-                    busybox_path="busybox"
-                    shift
+                    echo "Usage: --suite '/path/'"
+                    exit 1
                 fi
 
                 # check if we already modified these variables
-                if [ $use_busybox -eq 0 ]; then
-                    hash_cmd="$busybox_path $hash_cmd"
+                if [ $use_suite -eq 0 ]; then
+                    hash_cmd="$suite_path $hash_cmd"
                 fi
-                use_busybox=1
+                use_suite=1
 
                 # Exit if provided path isn't recognized
-                if [ ! -x "$(command -v "$busybox_path")" ]; then
-                    echo "Error: $busybox_path not found on PATH"
-                    echo "Usage: --busybox-path <busybox_path>"
+                if [ ! -x "$(command -v "$suite_path")" ]; then
+                    echo "Error: $suite_path not found on PATH"
+                    echo "Try to set its path directly: --suite-path <suite_path>"
                     exit 1
                 fi
                 ;;
             *)
                 echo "Unknown argument: $1"
-                echo "Usage: $0 [--output <raw|private|both> --hash-cmd <sha1sum|sha256sum|md5sum|...> --busybox --busybox-path <.../.../busybox>]"
+                echo "Usage: $0 [--output <raw|private|both> --hash <sha1sum|sha256sum|md5sum|...> --suite --suite-path <.../.../suite>]"
                 exit 1
                 ;;
         esac
