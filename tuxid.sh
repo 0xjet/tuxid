@@ -260,7 +260,6 @@ get_fingerprint() {
     collect_signal "Private IP Address" "if [ -z \"\$( echo $default_iface | sed 's/[[:space:]]//g' )\" ]; \
         then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1 | \
         head -n 1; fi" 0
-    #collect_signal "Public IP Address" "wget -qO- ifconfig.co" 0
     collect_signal "Public IP Address" "printf \"GET /ip HTTP/1.0\r\nHost: ifconfig.me\r\n\r\n\" | nc ifconfig.me 80 | tail -n1" 0
     collect_signal "MAC Address" "([ -n \"$default_iface\" ] && ip link | grep -A 1 \" \$default_iface:\" | \
         tail -n 1 |  sed 's/\ \ */ /g' | cut -d' ' -f3 2>/dev/null) || \

@@ -29,8 +29,8 @@ A Linux fingerprinting tool
 | Main Board Product Serial            	| permanent          	    | No               	    | 32–64 bits                                | local root      	    | manufacturer    	        | cat /sys/devices/virtual/dmi/id/board_serial                                        	|
 | Storage Devices UUIDs                	| permanent           	    | Yes             	    | 128 bits per UUID                         | local           	    | local           	        | ls -A /dev/disk/by-uuid/ \|\| lsblk -o UUID \|\| blkid \| grep 'UUID='                |
 | Processor Model Name (CPU)           	| permanent          	    | No               	    | 5 bits                                    | local           	    | manufacturer              | { grep 'Processor' /proc/cpuinfo; grep 'model name' /proc/cpuinfo; } \| uniq          |
-| Total Memory (RAM)                   	| permanent          	    | No              	    | depends on hw (16GB (in kB): 24 bits)     | local           	    | physical                  | cat /proc/meminfo \| grep "^MemTotal: " \| cut -d':' -f2- \| tr -d ' '                |
-| Root Filesystem Total Disk Space     	| permanent          	    | Yes              	    | depends on hw (5TB (in kB): 42 bits)      | local                 | local root, physical      | df \| tail -n +2 \| tr -s ' ' \| cut -d' ' -f2 \| awk '{s+=\$1} END {print s}'        |
+| Total Memory (RAM)                   	| permanent          	    | No              	    | depends on hw (16GB (in kB): 24 bits)     | local           	    | physical                  | cat /proc/meminfo \| grep "^MemTotal: " \| cut -d':' -f2- \| sed 's/ //g'     |
+| Root Filesystem Total Disk Space     	| permanent          	    | Yes              	    | depends on hw (5TB (in kB): 42 bits)      | local                 | local root, physical      | df \| tail -n +2 \| sed 's/\ \ */ /g' \| cut -d' ' -f2 \| awk '{s+=\$1} END {print s}'        |
 
 ### Software Signals
 | **Signal**        | **Estimated Lifetime**    | **User Resettable** 	| **Field length (in bits)**            | **Read Privileges**   | **Reset Privileges** 	                    | **Method**                            |
@@ -43,17 +43,18 @@ A Linux fingerprinting tool
 ### Network-related Signals
 | **Signal**                | **Estimated Lifetime**                            | **User Resettable** 	| **Field Length (in bits)** 	                | **Read Privileges** 	| **Reset Privileges** 	               | **Method**        |
 |----------------------     |---------------------------------------------	    |-----------------	    |------------------------------------	        |-----------------	    |------------------	                   |---------------    |
-| IP Address                | Volatile (Dynamic IP) or Permanent (Static IP)    | Yes                   | 32 bits (IPv4), 128 bits (IPv6)               | local                 | local (Dynamic), local root (Static) | ip addr show $iface \| grep 'inet ' |
-| MAC Address               | Permanent                                         | Yes                   | 24 bits                                       | local / local root    | local root                           | ip link \| grep -A 1 " $iface:" \|\| cat /sys/class/net/$iface/address |
-| Main Network Interface    | Permanent                                         | No                    | 16-504 bits (Gen. 16(lo)-120(enp3s0) bits)    | local                 | local root                           | echo $iface |
+| Public IP Address         | Volatile (Dynamic IP)                             | Yes                   | 32 bits (IPv4), 128 bits (IPv6)               | local                 | external (e.g., ISP/admin)           | printf "GET /ip HTTP/1.0\r\nHost: ifconfig.me\r\n\r\n\" \| nc ifconfig.me 80 \| tail -n1 |
+| Private IP Address        | Volatile (Dynamic IP) or Permanent (Static IP)    | Yes                   | 32 bits (IPv4), 128 bits (IPv6)               | local                 | local (Dynamic), local root (Static) | ip addr show $iface \| grep 'inet ' \| cut -d' ' -f6 \| cut -d'/' -f1 \| head -n 1 |
+| MAC Address               | Permanent                                         | Yes                   | 24 bits                                       | local / local root    | local root                           | ip link \| grep -A 1 "$iface:" \| tail -n 1 \| sed 's/\ \ */ /g' \| cut -d' ' -f3  |
+| Main Network Interface    | Permanent                                         | No                    | 16-504 bits (Gen. 16(lo)-120(enp3s0) bits)    | local                 | local root                           | iface=$(ip route \| grep default \| tail -n 1 \| cut -d' ' -f5); echo $iface |
 
 ### Operating System (OS) Signals
 | **Signal**            | **Estimated Lifetime**    | **User Resettable** 	| **Field Length (in bits)**                                | **Read Privileges** 	| **Reset Privileges** 	                        | **Method**            |
 |---------------------- |-----------------------    |-----------------	    |------------------	                                        |---------------        |---------------------                          |---------------        |
-| OS Locale Settings    | Volatile                  | Yes                   | variable (Gen. 40-128 w/o modifiers, e.g. en_US.UTF-8)    | local                 | local (per session), local root (system-wide) | cat /etc/locale.conf \| grep "^LANG=" |
+| OS Locale Settings    | Volatile                  | Yes                   | variable (Gen. 40-128 w/o modifiers, e.g. en_US.UTF-8)    | local                 | local (per session), local root (system-wide) | echo $LANG |
 | Kernel Version        | Permanent                 | No (updatable)        | variable (Gen. 160-400 bits, e.g. 5.4.0-42-generic)       | local                 | local root (by update)                        | cat /proc/sys/kernel/osrelease    |
-| OS Version            | Permanent                 | No (updatable)        | variable (Gen. 160-800 bits, e.g. Ubuntu 20.04.3 LTS)     | local                 | local root (by update)                        | cat /etc/os-release \| grep "^PRETTY_NAME="   |
-| Last boot time        | Volatile                  | No (updatable)        | 152 bits                                                  | local                 | local root (by reboot)                        | grep btime /proc/stat (also uptime -s, who -m) |
+| OS Version            | Permanent                 | No (updatable)        | variable (Gen. 160-800 bits, e.g. Ubuntu 20.04.3 LTS)     | local                 | local root (by update)                        | cat /etc/os-release \| grep "^PRETTY_NAME=" \| cut -d'=' -f2 \| sed 's/\"//g'  |
+| Last boot time        | Volatile                  | No (updatable)        | 152 bits                                                  | local                 | local root (by reboot)                        | grep btime /proc/stat \| cut -d' ' -f2- |
 
 ## References
 
