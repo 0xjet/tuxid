@@ -154,16 +154,16 @@ collect_signal() {
     # Append data to JSON
     case "$output_mode" in
         raw)
-            json_output="$json_output      \"$signal_name\": \"$result\",\n"
+            json_output="$json_output\t\t\"$signal_name\": \"$result\",\n"
             ;;
         private)
-            json_output="$json_output      \"$signal_name\": \"$result_hash\",\n"
+            json_output="$json_output\t\t\"$signal_name\": \"$result_hash\",\n"
             ;;
         both)
-            json_output="$json_output      \"$signal_name\": {\n"
-            json_output="$json_output           \"raw\": \"$result\",\n"
-            json_output="$json_output           \"hash\": \"$result_hash\"\n"
-            json_output="$json_output       },\n"
+            json_output="$json_output\t\t\"$signal_name\": {\n"
+            json_output="$json_output\t\t\t\"raw\": \"$result\",\n"
+            json_output="$json_output\t\t\t\"hash\": \"$result_hash\"\n"
+            json_output="$json_output\t\t},\n"
             ;;
     esac
 
@@ -193,7 +193,7 @@ get_fingerprint() {
     #
     # Collect HARDWARE signals
     #
-    json_output="$json_output  \"hardware_signals\": {\n"
+    json_output="$json_output\t\"hardware_signals\": {\n"
     collect_signal "Device Model" "cat /sys/devices/virtual/dmi/id/product_name" 0
     collect_signal "Device Vendor" "cat /sys/devices/virtual/dmi/id/sys_vendor" 0
     collect_signal "Main Board Product UUID" "cat /sys/devices/virtual/dmi/id/product_uuid" 1
@@ -228,12 +228,12 @@ get_fingerprint() {
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
-    json_output="$json_output\n  },\n"
+    json_output="$json_output\n\t},\n"
 
     #
     # Collect SOFTWARE signals
     #
-    json_output="$json_output  \"software_signals\": {\n"
+    json_output="$json_output\t\"software_signals\": {\n"
     collect_signal "Machine ID" "cat /etc/machine-id" 0
     collect_signal "Device hostid" "hostid" 0
     collect_signal "Hostname" "echo \${HOSTNAME:-$(hostname 2>/dev/null)}" 0
@@ -241,12 +241,12 @@ get_fingerprint() {
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
-    json_output="$json_output\n  },\n"
+    json_output="$json_output\n\t},\n"
 
     #
     # Collect NETWORK signals
     #
-    json_output="$json_output  \"network_signals\": {\n"
+    json_output="$json_output\t\"network_signals\": {\n"
     # Obtain default interface
     default_iface=$( handle_cmd "ip route 2>/dev/null | grep default | tail -n 1 | cut -d' ' -f5" )
     # If no default route is found, find the first non-loopback interface
@@ -260,7 +260,7 @@ get_fingerprint() {
     collect_signal "Private IP Address" "if [ -z \"\$( echo $default_iface | sed 's/[[:space:]]//g' )\" ]; \
         then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1 | \
         head -n 1; fi" 0
-    collect_signal "Public IP Address" "printf \"GET /ip HTTP/1.0\r\nHost: ifconfig.me\r\n\r\n\" | nc ifconfig.me 80 | tail -n1" 0
+    collect_signal "Public IP Address" "curl ifconfig.me | tail -n1" 0
     collect_signal "MAC Address" "([ -n \"$default_iface\" ] && ip link | grep -A 1 \" \$default_iface:\" | \
         tail -n 1 |  sed 's/\ \ */ /g' | cut -d' ' -f3 2>/dev/null) || \
         cat /sys/class/net/\$default_iface/address" 0
@@ -268,12 +268,12 @@ get_fingerprint() {
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
-    json_output="$json_output\n  },\n"
+    json_output="$json_output\n\t},\n"
 
     #
     # Collect OS signals
     #
-    json_output="$json_output  \"os_signals\": {\n"
+    json_output="$json_output\t\"os_signals\": {\n"
     collect_signal "OS Locale Settings" "echo $LANG" 0
     collect_signal "Kernel Version" "cat /proc/sys/kernel/osrelease" 0
     collect_signal "OS Version" "cat /etc/os-release | grep PRETTY_NAME | cut -d'=' -f2 | sed 's/\"//g'" 0
@@ -281,16 +281,16 @@ get_fingerprint() {
 
     # Fix formatting (remove last comma in the category)
     json_output="${json_output%???}"
-    json_output="$json_output\n  },\n"
+    json_output="$json_output\n\t},\n"
 
     # Generate final fingerprinting hash
     if [ -n "$fingerprint_data" ]; then
         fingerprint_hash=$(handle_cmd "printf \"%s\" \"$fingerprint_data\" | $hash_cmd | cut -d' ' -f1")
         # Add it to the JSON file
-        json_output="$json_output  \"fingerprint_hash\": {\n"
-        json_output="$json_output      \"hash_digest\": \"$fingerprint_hash\",\n"
-        json_output="$json_output      \"hash_algorithm\": \"$hash_cmd\"\n"
-        json_output="$json_output  }\n"
+        json_output="$json_output\t\"fingerprint_hash\": {\n"
+        json_output="$json_output\t\t\"hash_digest\": \"$fingerprint_hash\",\n"
+        json_output="$json_output\t\t\"hash_algorithm\": \"$hash_cmd\"\n"
+        json_output="$json_output\t}\n"
     else
         echo "Error: No valid signals collected."
     fi
@@ -315,7 +315,7 @@ main() {
     json_output=""
 
     # Unix tools defined here will be executed under the suite environment
-    suite_tools="sed grep tail head cut paste blkid uniq nc printf"
+    suite_tools="sed grep tail head cut paste blkid uniq printf"
 
     # Parse arguments
     while [ $# -gt 0 ]; do
