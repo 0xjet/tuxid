@@ -7,7 +7,7 @@ Description: This script process all json files present in a directory
 specified by the user, and calculates the entropy of every signal
 present in any of those files
 
-Usage: sh tuxid_entropy.sh --dir <json_files_directory> --format <table|json|csv>
+Usage: bash tuxid_entropy.sh --dir <json_files_directory> --format <table|json|csv>
 
 Note: This script is intended to work with json files of the next type,
 where every json category corresponds to an specific signal category
@@ -245,7 +245,7 @@ main() {
                 shift 2
                 ;;
             --dir)
-                if [ ! -d "$2" ] || [ -z "$(ls "$2"/*.json 2>/dev/null)" ]; then
+                if [ ! -d "$2" ]; then
                     echo "Directory does not exists: $1"
                     echo "Usage: $0 <directory_with_json_files>"
                     exit 1
@@ -264,7 +264,11 @@ main() {
     signal_categories="hardware_signals|software_signals|network_signals|os_signals"
     signal_separator='|'
     signals_names=""
-    json_files=$(find "$input_dir"/*.json | tr '\n' '|')
+    # Dataset containing only one json file per device
+    #json_files=$(find "$input_dir"/*.json | tr '\n' '|')
+    # Dataset containing multiple folders (one per device) and multiple json files inside
+    # them (one per boot instance)
+    json_files=$(find "$input_dir" -type f -name "boot1.json" | tr '\n' '|')
 
     generate_tables
 }

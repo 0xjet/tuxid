@@ -19,8 +19,7 @@ Hash Command: sha1sum, sha256sum, md5sum, etc
 
 Suite (not used by default):
     - e.g. sh tuxid.sh --suite "/.../.../suite"
-- --suite      : use a software suite to handle unix/linux commands
-- --suite-path : path to the software suite binary
+- --suite      : path to the software suite to handle unix/linux commands
 '
 
 
@@ -260,7 +259,8 @@ get_fingerprint() {
     collect_signal "Private IP Address" "if [ -z \"\$( echo $default_iface | sed 's/[[:space:]]//g' )\" ]; \
         then echo ''; else ip addr show $default_iface | grep 'inet ' | cut -d' ' -f6 | cut -d'/' -f1 | \
         head -n 1; fi" 0
-    collect_signal "Public IP Address" "curl ifconfig.me | tail -n1" 0
+    collect_signal "Public IP Address" "if command -v curl >/dev/null 2>&1; then curl -s ifconfig.me; \
+        else printf \"GET /ip HTTP/1.0\r\nHost: ifconfig.me\r\n\r\n\" | nc ifconfig.me 80 | tail -n1; fi" 0
     collect_signal "MAC Address" "([ -n \"$default_iface\" ] && ip link | grep -A 1 \" \$default_iface:\" | \
         tail -n 1 |  sed 's/\ \ */ /g' | cut -d' ' -f3 2>/dev/null) || \
         cat /sys/class/net/\$default_iface/address" 0
@@ -321,7 +321,7 @@ main() {
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
-                echo "Usage: $0 [--output <raw|private|both> --hash <sha1sum|sha256sum|md5sum|...> --suite --suite-path <.../.../suite>]"
+                echo "Usage: $0 [--output <raw|private|both> --hash <sha1sum|sha256sum|md5sum|...> --suite <.../.../suite>]"
                 exit 1
                 ;;
             --output)
@@ -361,13 +361,13 @@ main() {
                 # Exit if provided path isn't recognized
                 if [ ! -x "$(command -v "$suite_path")" ]; then
                     echo "Error: $suite_path not found on PATH"
-                    echo "Try to set its path directly: --suite-path <suite_path>"
+                    echo "Try to set its path directly: --suite <suite_path>"
                     exit 1
                 fi
                 ;;
             *)
                 echo "Unknown argument: $1"
-                echo "Usage: $0 [--output <raw|private|both> --hash <sha1sum|sha256sum|md5sum|...> --suite --suite-path <.../.../suite>]"
+                echo "Usage: $0 [--output <raw|private|both> --hash <sha1sum|sha256sum|md5sum|...> --suite <.../.../suite>]"
                 exit 1
                 ;;
         esac

@@ -1,0 +1,32 @@
+{
+  "hardware_signals": {
+    "Device Model": "N/A",
+    "Device Vendor": "N/A",
+    "Storage Devices UUIDs": "N/A",
+    "Processor Model Name": "9850e5fc31cb31c1692e7ba4dc290ee85fa9b344",
+    "Total Memory (RAM)": "67b3fa4cfe7726d3b6fc134d38420b3396b3ebd8",
+    "Total Disk Space": "6d7dd17d27dbac46a35abfe194ddf53734011dc3"
+  },
+  "software_signals": {
+    "Machine ID": "N/A",
+    "Device hostid": "N/A",
+    "Hostname": "7ea35d812706d9213868749011af1ed4fa2f6aa0",
+    "Random Boot UUID": "bb5f5ac57fe8f87010d757474949a85a89b14cef"
+  },
+  "network_signals": {
+    "Private IP Address": "bbab95c9212eee3f15b7df111ee695ced602403a",
+    "Public IP Address": "fe08a4ade52de7da79ba26df9bc1ab15e35335b2",
+    "MAC Address": "e34f50f4d7bac1d76e0dc1c097897cdb20d3fe2e",
+    "Main Network Interface": "daffbef91ee156b90fd01ecb2fd5d3edcd660331"
+  },
+  "os_signals": {
+    "OS Locale Settings": "N/A",
+    "Kernel Version": "61fa3ee330a614e1bad7a8f38904cde7638d2041",
+    "OS Version": "N/A",
+    "Last Boot Time": "f3b545d82f10ae5f79ab58e4380f23b934583245"
+  },
+  "fingerprint_hash": {
+    "hash_digest": "41495686d7b799565496a606670dd26c296c03c6",
+    "hash_algorithm": "./busybox sha1sum"
+  }
+}

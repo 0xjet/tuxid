@@ -1,0 +1,34 @@
+{
+  "hardware_signals": {
+    "Device Model": "d1f877ebab5e3608eee1d8de6deec710e65ac7e2",
+    "Device Vendor": "2b681c0a24baff8899d7163cc7f805c75e1f44e4",
+    "Main Board Product UUID": "d81e5f4664dc043a60ff1fe055c534057d670883",
+    "Main Board Product Serial": "d7fd6bead705df706cc37c245164d7826c2dab92",
+    "Storage Devices UUIDs": "80550b694a30ae27dd1f453c5d2439dcc78943a5",
+    "Processor Model Name": "N/A",
+    "Total Memory (RAM)": "fcbbadba7406e9195f10853338c4c08487630744",
+    "Total Disk Space": "44ab2f62bcc9334a38751d82735a6dcbdcd5af60"
+  },
+  "software_signals": {
+    "Machine ID": "10fde381b8a02a056cbfab13ba8e4805325820f3",
+    "Device hostid": "8f0a919a3336cfaa31963917dab96c04bbc96be4",
+    "Hostname": "c48e14d3ff0b3bd690699d47c73c8d0de319c21d",
+    "Random Boot UUID": "78c1da9118fe46d2b3893a10b1cec6c6da824b6e"
+  },
+  "network_signals": {
+    "Private IP Address": "c97f4a0f2705c40bebee0c59b92e6b1e83d4fdf1",
+    "Public IP Address": "38c0bdb0e512362864d0cfc59fd1b12dbba84da5",
+    "MAC Address": "dbba86cba7ff5ceed579fb6a9bc514921bc1cddc",
+    "Main Network Interface": "5dbe27d6df319219c20e9eb18edc19fd61f5f955"
+  },
+  "os_signals": {
+    "OS Locale Settings": "2f7b4e2832e68e1b002423d9459c63734eef3941",
+    "Kernel Version": "1d2de0c253ad9fc8d655932342dc0abc99499d7f",
+    "OS Version": "f8f719ae94dacbd96e682fbb2591aa95d9f76207",
+    "Last Boot Time": "653560d29c9c0fccc1a7020ba2c68028649aeca8"
+  },
+  "fingerprint_hash": {
+    "hash_digest": "99c339256ca037fbe5549d0243607a9c32d4a724",
+    "hash_algorithm": "sha1sum"
+  }
+}

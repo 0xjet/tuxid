@@ -1,0 +1,32 @@
+{
+  "hardware_signals": {
+    "Device Model": "N/A",
+    "Device Vendor": "N/A",
+    "Storage Devices UUIDs": "N/A",
+    "Processor Model Name": "N/A",
+    "Total Memory (RAM)": "f33ee844872e124071667bae4bb7ddaf35a795ea",
+    "Total Disk Space": "a65a425f7a4834970f8cd361370e3f37d31ef3dc"
+  },
+  "software_signals": {
+    "Machine ID": "N/A",
+    "Device hostid": "N/A",
+    "Hostname": "748878f76208651555b1c16c7375f1615e9ac946",
+    "Random Boot UUID": "04d46a19fe3d32de9648fe5e6f22a25ff08b5f49"
+  },
+  "network_signals": {
+    "Private IP Address": "N/A",
+    "Public IP Address": "N/A",
+    "MAC Address": "N/A",
+    "Main Network Interface": "N/A"
+  },
+  "os_signals": {
+    "OS Locale Settings": "N/A",
+    "Kernel Version": "N/A",
+    "OS Version": "N/A",
+    "Last Boot Time": "ad2972a70733939af9e2e2eab4cc9feac4e08ac1"
+  },
+  "fingerprint_hash": {
+    "hash_digest": "45deba35c7747dd59d79f938463e4533532b1623",
+    "hash_algorithm": "sha1sum"
+  }
+}
