@@ -143,7 +143,7 @@ collect_signal() {
 
         # Validate hash generated (maybe check syntax of hash using a regex expression)
         if [ ! "$result_hash" ] || [ -z "$result_hash" ]; then
-            echo "Error: $hash failed"
+            echo "Error: $result_hash failed"
             echo "Usage: --hash <sha1sum|sha256sum|md5sum|...>"
             echo "Error: $suite_path $hash_cmd command is unknown"
             exit 1
