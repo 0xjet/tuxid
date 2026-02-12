@@ -8,7 +8,7 @@ A lightweight POSIX-compliant shell script that collects hardware, system, and n
 
 ## Overview
 
-`tuxid` is a tool for performing local device fingerprinting on Linux and Linux-based systems. The fingerprint produced by `tuxid` is derived from multiple system, network, and hardware signals and can be used to re-identify the device at a subsequent time.
+`tuxid` is a tool for performing local device fingerprinting on Linux and Linux-based systems. The fingerprint is derived from multiple system, network, and hardware signals and can be used to re-identify the device at a subsequent time.
 
 This [blog post](https://0xjet.github.io/3OHA/2026/02/12/post.html) describes the design of `tuxid`, the signal catalog, and an evaluation of the estimated entropy and stability of each signal.
 
